@@ -1,0 +1,52 @@
+#!/usr/bin/perl
+
+use NetSNMP::agent (':all');
+use NetSNMP::ASN;
+
+sub subagent{
+  my ($handler, $registration_info, $request_info, $requests) = @_;
+  my $request;
+  my $T = time;
+  my $lower_bits = 0x00000000FFFFFFFF;
+  
+  for($request = $requests; $request; $request = $request->next()) {
+    my $oid = $request->getOID();
+
+    if ($request_info->getMode() == MODE_GET){
+
+         if ($oid == new NetSNMP::OID("1.3.6.1.4.1.4171.40.1")) {
+              $request->setValue(ASN_COUNTER,$T);
+	 }
+
+	 else {	
+
+		my @d = split('\.',$oid);
+		my $N = $d[-1];
+		my $desired_counter = $N-1 ;
+
+		open my $DATA, '<', '/tmp/A1/counters.conf';
+		chomp(my @counters = <$DATA>);
+
+		foreach (@counters) {
+			my @id_C = split(',',$_);
+
+			if($desired_counter == $id_C[0]){
+				my $C = $id_C[1];
+				my $y = $T * $C;
+
+				if ($y < 2**32){
+					$request->setValue(ASN_COUNTER,$y);
+				}
+
+				elsif ($y >= 2**32) {
+					$request->setValue(ASN_COUNTER,$y & $lower_bits);
+				}
+			}
+		}
+	 }
+    }
+  }
+}
+
+my $agent = new NetSNMP::agent();
+$agent->register("SNMP", "1.3.6.1.4.1.4171.40",\&subagent);
