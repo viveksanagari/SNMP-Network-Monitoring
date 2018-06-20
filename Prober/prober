@@ -1,0 +1,128 @@
+#!/usr/bin/env python	
+
+import sys,easysnmp,time
+from easysnmp import Session
+
+a = sys.argv[1:]
+  
+agent = a[0].split(":")
+
+fs = a[1]
+
+F = 1/float(fs)
+
+s = a[2]
+
+oids = a[3:]
+
+oids.insert(0,'1.3.6.1.2.1.1.3.0')
+
+sg_value = []
+
+new_sgv = []
+
+c64 = 2**64
+
+c32 = 2**32
+
+
+
+if int(a[2])== -1:
+
+	k = -1
+
+else: 	
+
+	k = int(a[2])
+
+N = 0
+
+while True:
+
+	s_time = (time.time())
+
+	if N!=0:
+
+		print int(s_time),"|",
+
+	try: 
+
+		prober = Session(hostname=agent[0],remote_port =agent[1], community=agent[2], version=2,timeout = 1,retries = 1)
+
+		sg = prober.get(oids)
+
+	except easysnmp.exceptions.EasySNMPTimeoutError: 
+
+		print ""
+
+        	if k == 0:
+
+                	break
+
+	        if k > 0:
+
+        	        k -= 1
+
+		continue
+
+	sg_value  = []
+
+	for vs in range(1,len(sg)):   
+
+		if sg[vs].value!= 'NOSUCHOBJECT' and sg[vs].value!='NOSUCHINSTANCE':
+			
+			gv = int(sg[vs].value)
+
+			sg_value.append(gv)
+		
+
+			if len(new_sgv)>0 and N!= 0:
+				
+				ul = sg_value[vs-1]
+
+				ur = new_sgv[vs-1]
+
+				u =  int(ul)-int(ur)
+
+				d = round(s_time-new_st,1)
+
+				r = int(u/d)
+
+				if sg[vs].snmp_type =='COUNTER64' and r<0:       
+
+					u += c64
+
+					print int(u/d),"|",
+
+				elif sg[vs].snmp_type =='COUNTER' and r<0:    
+
+					u += c32
+
+					print int(u/d),"|",
+
+				else:
+
+					print r,"|",
+
+	if N!=0:	
+
+		print ""
+
+	new_sgv = sg_value
+
+	new_st = s_time
+
+	f_time = time.time()
+
+	N += 1
+
+	time.sleep(abs(F-f_time+s_time))
+
+        if k == 0:
+
+                break
+
+        if k > 0:
+
+                k -= 1
+		
