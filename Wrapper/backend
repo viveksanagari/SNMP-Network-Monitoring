@@ -1,0 +1,26 @@
+#!/usr/bin/python -W
+
+
+import sys, os, subprocess 
+
+backend = sys.argv
+
+a3 = subprocess.Popen(['unbuffer','/tmp/A2/prober', backend[1], backend[2], '-1'] + backend[3:], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+for line in iter(a3.stdout.readline,""):
+
+        l= line.split('|') 
+
+        m= [v.rstrip() for v in l]
+
+	r= [k.strip(' ') for k in m]
+
+	timevalue = r[0]
+
+	Time = int(float(timevalue))
+
+
+	for value,oid in zip(r[1:], backend[3:]):
+
+	  os.system("curl -i -XPOST 'http://localhost:8086/write?db=A3&u=ats&p=atslabb00&precision=s' --data-binary 'rate,oid=%s value=%d %d'"%(oid,int(value),int(Time)))
+    
