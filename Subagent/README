@@ -1,8 +1,21 @@
 # readme for snmp subagent
 
 Ensure the installation of NetSNMP-agent perl module.
-1. Create a folder named A1 in tmp folder: sudo mkdir /tmp/A1
-2. Copy the attached subagent and counters.conf to /tmp/A1: sudo cp subagent counters.conf /tmp/A1/
-3. Copy the attached snmpd.conf to /etc/snmp: sudo cp snmpd.conf /etc/snmp/snmpd.conf
-4. Restart snmpd server: sudo service snmpd restart
-5. Use the snmpget application to send a GET request to SNMP agent: snmpget -v2c -c public localhost:161 .1.3.6.1.4.1.4171.40.1
+
+1. Create a folder named A1 in tmp folder: 
+   sudo mkdir /tmp/A1
+
+2. Copy the attached subagent and counters.conf to /tmp/A1: 
+   sudo cp subagent counters.conf /tmp/A1/
+
+3. Copy the attached snmpd.conf to /etc/snmp: 
+   sudo cp snmpd.conf /etc/snmp/snmpd.conf
+
+4. Restart snmpd server: 
+    sudo service snmpd restart
+
+5. Use the snmpget application to send a GET request to SNMP agent:
+   snmpget -v2c -c public localhost:161 .1.3.6.1.4.1.4171.40.1
+
+6. The response for the above GET request would appear like: 
+   iso.3.6.1.4.1.4171.40.1 = Counter32: 1529487663
