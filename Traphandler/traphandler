@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+
+use Net::SNMP;
+use DBI;
+use NetSNMP::TrapReceiver;
+
+my $status, $t, $domain;
+
+my $dbi_connect = DBI->connect('DBI:SQLite:vivek.db', { RaiseError => 1 }) or die $DBI::errstr;
+print "Database opened\n";
+
+my $create = $dbi_connect->do('CREATE TABLE IF NOT EXISTS status_table(domain_name TEXT NOT NULL,status INT NOT NULL,ntime INT NOT NULL,oldstatus INT,oldtime INT);');
+if($create < 0) { print $DBI::errstr; } else { print "Table created\n"; }
+
+sub trap_h {
+
+     my @danger_trap=(), @fail_trap=(), $v=0, $tv=0;
+
+     foreach my $th (@{$_[1]}) { 
+
+		if ("$th->[0]" eq ".1.3.6.1.4.1.41717.10.1") { $domain =  $th->[1];
+					                       $t = time(); }
+		elsif ("$th->[0]" eq ".1.3.6.1.4.1.41717.10.2") { $status = $th->[1]; }      
+	}
+
+     $domain =~ s/\"//gs;
+
+     my $select = $dbi_connect->prepare( 'SELECT domain_name,status,ntime,oldstatus,oldtime from status_table;' );
+     $r = $select->execute() or die $DBI::errstr;
+
+     my @a;
+     while (my @row = $select->fetchrow_array()) { push @a ,$row[0]; }
+     my $length = @a;
+
+     if($length>0){
+	my $select = $dbi_connect->prepare( 'SELECT domain_name,status,ntime,oldstatus,oldtime from status_table;' );
+	$r = $select->execute() or die $DBI::errstr;
+
+        while(my @row =$select->fetchrow_array()) {	
+	  if ($row[0] eq $domain) {
+		$old_time = $row[2];
+		$r = $dbi_connect->do("UPDATE status_table set status='$status', ntime='$t', oldstatus='$row[1]', oldtime='$old_time' where domain_name='$row[0]';") or die $DBI::errstr;
+		$tv = $tv+1;
+	    }	 
+	 }
+      }
+
+      else { $r = $dbi_connect->do("INSERT INTO status_table (domain_name,status,ntime,oldstatus,oldtime) VALUES ('$domain','$status','$t','$status','$t')") or die $DBI::errstr;
+	     $tv = $tv+1; }
+
+      if($tv==0) { $r = $dbi_connect->do("INSERT INTO status_table (domain_name,status,ntime,oldstatus,oldtime) VALUES ('$domain','$status','$t','$status','$t')") or die $DBI::errstr;
+		  $tv = $tv+1; }
+
+
+     $select = $dbi_connect->prepare( 'SELECT domain_name,status,ntime,oldstatus,oldtime from status_table;' );
+     $r = $select->execute() or die $DBI::errstr;
+
+     while(my @row =$select->fetchrow_array()) { 
+
+        if ($row[1]==3) 
+		{ push @fail_trap,('.1.3.6.1.4.1.41717.20.1', OCTET_STRING,$row[0], '.1.3.6.1.4.1.41717.20.2',TIMETICKS,$row[2], 
+				'.1.3.6.1.4.1.41717.20.3',INTEGER,$row[3],'.1.3.6.1.4.1.41717.20.4',TIMETICKS,$row[4]); }
+
+	elsif ($row[1]==2 && $row[3]!=3)
+		{ push @danger_trap,('.1.3.6.1.4.1.41717.30.'.(($v*4)+1), OCTET_STRING,$row[0], '.1.3.6.1.4.1.41717.30.'.(($v*4)+2),TIMETICKS,$row[2], 
+				'.1.3.6.1.4.1.41717.30.'.(($v*4)+3),INTEGER,$row[3],'.1.3.6.1.4.1.41717.30.'.(($v*4)+4),TIMETICKS,$row[4]);
+		$v = $v+1; }
+     }
+
+push @fail_trap,@danger_trap;
+
+$select = $dbi_connect->prepare('SELECT * FROM trap_destination;');
+$r = $select->execute() or die $DBI::errstr;
+
+@row =$select->fetchrow_array();
+
+my ($session, $error) = Net::SNMP->session( -hostname  => $row[0], -community => $row[2], -port => $row[1], );
+$result = $session->trap(-varbindlist  => \@fail_trap); 
+
+if (!defined($result)) {print "Unable to Send Trap";} 
+else {print "Trap Sent\n";}
+
+}
+
+NetSNMP::TrapReceiver::register("all", \&trap_h) || warn "failed to register the trap handler\n";
+print STDERR "Loaded snmptrapd handler\n";
